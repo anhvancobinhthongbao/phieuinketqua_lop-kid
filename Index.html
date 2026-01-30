@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Phiếu Điểm AVCB - Final Clean</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Quicksand', sans-serif; background: #e3f2fd; padding: 20px; margin: 0; }
+        
+        /* --- CẤU HÌNH (KHÔNG IN) --- */
+        .no-print { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; border-top: 5px solid #1976d2; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 15px; background: #f0f8ff; padding: 15px; border-radius: 10px; }
+        .field { display: flex; flex-direction: column; }
+        label { font-size: 11px; font-weight: bold; color: #1565c0; margin-bottom: 4px; text-transform: uppercase; }
+        input, select { padding: 8px; border: 2px solid #64b5f6; border-radius: 8px; font-size: 14px; outline: none; font-family: 'Quicksand'; }
+
+        .logo-preview-box { text-align: center; margin-top: 5px; }
+        #currentLogo { max-height: 40px; border: 1px dashed #90caf9; padding: 2px; border-radius: 5px; }
+
+        #previewArea { display: none; margin-top: 15px; border-top: 2px solid #2196f3; padding-top: 15px; }
+        .preview-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .preview-tbl th { background: #1976d2; color: white; padding: 8px; text-align: left; }
+        .preview-tbl td { padding: 6px; border-bottom: 1px solid #bbdefb; }
+
+        .btn-print { background: #0288d1; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 15px; transition: 0.3s; box-shadow: 0 4px 0 #01579b; }
+
+        /* --- TRANG IN A5 --- */
+        @media print {
+            @page { size: A5; margin: 5mm; }
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            .report-card { display: block !important; page-break-after: always; }
+        }
+
+        .report-card { 
+            display: none; width: 138mm; height: 198mm; margin: 0 auto; 
+            background: #fff; border: 4px solid #2196f3; 
+            position: relative; box-sizing: border-box; overflow: hidden; 
+            padding: 2mm 5mm 5mm 5mm; /* Lề tối ưu */
+        }
+
+        .decor { position: absolute; font-size: 30px; opacity: 0.08; z-index: 0; filter: grayscale(100%) sepia(100%) hue-rotate(180deg) saturate(300%); }
+
+        /* Header */
+        .card-header { text-align: center; border-bottom: 2px dashed #64b5f6; padding-bottom: 2px; margin-bottom: 5px; position: relative; z-index: 1; }
+        .logo-img { height: 75px; object-fit: contain; margin-bottom: 0px; }
+        .title-main { margin: 0; font-size: 20px; color: #1565c0; font-weight: 800; text-transform: uppercase; line-height: 1.1; }
+        .title-sub { margin: 0; font-size: 12px; font-weight: bold; color: #546e7a; }
+
+        /* Thông tin */
+        .info-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px; margin: 5px 0; background: #e3f2fd; padding: 6px; border-radius: 10px; position: relative; z-index: 1; border: 1px solid #90caf9; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-lbl { font-size: 9px; color: #546e7a; font-weight: bold; text-transform: uppercase; margin-bottom: 0px; }
+        .info-val { font-size: 12px; font-weight: bold; color: #0d47a1; }
+        .full-width { grid-column: span 2; border-top: 1px dashed #90caf9; padding-top: 2px; margin-top: 2px; }
+
+        /* Bảng điểm */
+        .score-tbl { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 5px; position: relative; z-index: 1; border: 1px solid #42a5f5; border-radius: 8px; overflow: hidden; }
+        .score-tbl th { background: #2196f3; color: white; padding: 4px 6px; font-size: 10px; text-align: left; text-transform: uppercase; }
+        .score-tbl td { border-bottom: 1px solid #e3f2fd; padding: 3px 6px; font-size: 12px; color: #333; }
+        .score-val { text-align: center; font-weight: bold; }
+        
+        .row-total { background: #e3f2fd !important; }
+        .row-total td { color: #0d47a1; font-weight: bold; font-size: 13px; }
+        .row-rank { background: #e8f5e9 !important; }
+        .row-rank td { color: #2e7d32; font-weight: bold; }
+
+        /* Nhận xét */
+        .remark-box { border: 2px dashed #42a5f5; padding: 8px; min-height: 60px; font-size: 12px; line-height: 1.3; background: #f1f8e9; border-radius: 10px; margin-top: 5px; position: relative; z-index: 1; }
+        .remark-lbl { position: absolute; top: -9px; left: 10px; background: #f1f8e9; padding: 0 4px; color: #1565c0; font-weight: bold; font-size: 9px; border: 1px solid #42a5f5; border-radius: 4px; }
+
+        /* Footer */
+        .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 5px; position: relative; z-index: 1; color: #1a5276; }
+        .footer-left { display: flex; flex-direction: column; gap: 2px; width: 60%; }
+        
+        .app-promo { font-size: 10px; color: #d84315; font-weight: bold; font-style: italic; text-align: left; line-height: 1.2; }
+
+        .qr-section { display: flex; gap: 10px; align-items: flex-start; }
+        .qr-wrap { text-align: center; }
+        .qr-frame { width: 80px; height: 80px; border: 1px solid #90caf9; padding: 2px; background: white; margin: 0 auto; display: flex; align-items: center; justify-content: center; }
+        .qr-txt { font-size: 9px; font-weight: bold; color: #1565c0; margin-top: 2px; }
+        
+        .sign-box { text-align: center; min-width: 110px; }
+        .sign-lbl { font-weight: bold; color: #78909c; margin-bottom: 35px; text-transform: uppercase; font-size: 9px; }
+        .teacher-name { font-weight: bold; color: #0277bd; font-size: 13px; margin-top: -30px; }
+
+        .page-num { position: absolute; bottom: 3mm; right: 3mm; font-size: 8px; color: #aaa; font-style: italic; }
+        .print-date { position: absolute; bottom: 3mm; left: 3mm; font-size: 9px; color: #555; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="no-print">
+    <h2 style="text-align:center; color:#1565c0;">🎨 IN KẾT QUẢ  (AVCB)</h2>
+    
+    <div class="setup-grid">
+        <div class="field"><label>Giáo Viên:</label><input type="text" id="tea" value=""></div>
+        <div class="field"><label>Lớp:</label><input type="text" id="cls" value="KIDS 1"></div>
+        <div class="field">
+            <label>Ca Học:</label>
+            <select id="shift">
+                <option value="Tue-Thu 6:15 ~ 7:45 PM">T3-T5 6:15 ~ 7:45 PM</option>
+                <option value="Wed-Fri 6:15 ~ 7:45 PM">T4-T6 6:15 ~ 7:45 PM</option>
+                <option value="Sat-Sun 4:15 ~ 5:45 PM">T7 - CN 4:15 ~ 5:45 PM</option>
+                <option value="Sat-Sun 6:00 ~ 7:30 PM">T7 - CN 6:00 ~ 7:30 PM</option>
+            </select>
+        </div>
+        
+        <div class="field" style="grid-column: span 2;">
+            <label>Thời gian khóa học:</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="startDate" placeholder="Ngày Bắt đầu" style="flex:1">
+                <input type="text" id="endDate" placeholder="Ngày Kết thúc" style="flex:1">
+            </div>
+        </div>
+
+        <div class="field"><label>Ngày In:</label><input type="text" id="printDate" value="30/01/2026"></div>
+        
+        <div class="field" style="grid-column: span 2;">
+            <label>Logo Trung Tâm (Logo gốc):</label>
+            <input type="file" id="logoFile" accept="image/*">
+            <div class="logo-preview-box">
+                <img id="currentLogo" src="" alt="Logo chưa chọn">
+            </div>
+        </div>
+
+        <div class="field" style="grid-column: span 2;"><label>File Excel Điểm:</label><input type="file" id="excelFile" accept=".xlsx, .xls"></div>
+    </div>
+
+    <div id="previewArea">
+        <h3 style="color:#1565c0;">Danh sách bé:</h3>
+        <table class="preview-tbl">
+            <thead><tr><th>STT</th><th>Họ Tên</th><th>Tổng Điểm</th><th>Xếp Hạng</th></tr></thead>
+            <tbody id="previewBody"></tbody>
+        </table>
+        <button class="btn-print" onclick="startPrinting()">IN PHIẾU NGAY 🖨️</button>
+    </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+    // --- LOGO NGUYÊN BẢN ---
+    const defaultLogo = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj4KICA8Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjkwIiBmaWxsPSIjZmZmOGYwIiBzdHJva2U9IiNmZjlYNDMiIHN0cm9rZS13aWR0aD0iNSIvPgogIDxwYXRoIGQ9Ik0zMCAxNTBCQTEwMCAxMDAgMCAwIDEgMTcwIDE1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmY2YjZiIiBzdHJva2Utd2lkdGg9IjEwIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNNTAgMTUwQTEwMCAxMDAgMCAwIDEgMTUwIDE1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNGNkNTMiIHN0cm9rZS13aWR0aD0iMTAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDx0ZXh0IHg9IjEwMCIgeT0iMTIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtd2VpZ2h0PSJib2xkIiBmb250LXNpemU9IjQwIiBmaWxsPSIjZTY3ZTIyIj5BVkNCPC90ZXh0Pgo8L3N2Zz4=";
+    
+    // --- LƯU LOGO ---
+    const logoImgElem = document.getElementById('currentLogo');
+    const savedLogo = localStorage.getItem('avcb_logo_origin');
+    if (savedLogo) logoImgElem.src = savedLogo; else logoImgElem.src = defaultLogo;
+
+    document.getElementById('logoFile').onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const r = new FileReader();
+        r.onload = (f) => {
+            const base64 = f.target.result;
+            logoImgElem.src = base64;
+            try { localStorage.setItem('avcb_logo_origin', base64); } catch(err) {}
+        };
+        r.readAsDataURL(file);
+    };
+
+    // --- HÀM XỬ LÝ ĐIỂM TRỐNG (MỚI) ---
+    function formatPoint(val) {
+        // Nếu giá trị là null, undefined hoặc chuỗi rỗng -> Trả về "-"
+        if (val === undefined || val === null || val === "") return "-";
+        return val;
+    }
+
+    // --- XỬ LÝ EXCEL ---
+    let studentList = [];
+
+    document.getElementById('excelFile').onchange = (e) => {
+        const r = new FileReader();
+        r.onload = (f) => {
+            const wb = XLSX.read(f.target.result, {type: 'binary'});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const raw = XLSX.utils.sheet_to_json(ws, {header: 1, defval: ""});
+
+            let map = {};
+            for(let i=0; i<20; i++) {
+                if(!raw[i]) continue;
+                raw[i].forEach((txt, cIdx) => {
+                    let s = String(txt).toLowerCase();
+                    if(s.includes("student name") || s.includes("họ tên")) map.name = cIdx;
+                    if(s.includes("nick-name")) map.nick = cIdx;
+                    if(s.includes("reading")) map.read = cIdx;
+                    if(s.includes("listening")) map.listen = cIdx;
+                    if(s.includes("speaking")) map.speak = cIdx;
+                    if(s.includes("participation")) map.part = cIdx;
+                    if(s.includes("overall") || s.includes("tổng")) map.total = cIdx;
+                    if(s.includes("classification") || s.includes("xếp loại")) map.cls = cIdx;
+                    if(s.includes("comments") || s.includes("nhận xét")) map.cmt = cIdx;
+                });
+            }
+
+            if(map.name === undefined) { alert("Không tìm thấy cột Tên học sinh!"); return; }
+
+            studentList = [];
+            for(let i=0; i<raw.length; i++) {
+                let row = raw[i];
+                if(row[map.name] && !String(row[map.name]).toLowerCase().includes("student name")) {
+                    studentList.push({
+                        name: row[map.name],
+                        nick: map.nick ? row[map.nick] : "",
+                        // Lấy giá trị thô để xử lý sau
+                        read: map.read ? row[map.read] : "",
+                        listen: map.listen ? row[map.listen] : "",
+                        speak: map.speak ? row[map.speak] : "",
+                        part: map.part ? row[map.part] : "",
+                        total: map.total ? row[map.total] : "",
+                        cls: map.cls ? row[map.cls] : "",
+                        cmt: map.cmt ? row[map.cmt] : ""
+                    });
+                }
+            }
+
+            // Sắp xếp: Nếu không có điểm tổng thì coi là 0 để xếp cuối
+            studentList.sort((a, b) => (parseFloat(b.total)||0) - (parseFloat(a.total)||0));
+            studentList.forEach((s, idx) => s.rank = idx + 1);
+
+            const tb = document.getElementById('previewBody');
+            tb.innerHTML = "";
+            studentList.forEach((s, i) => {
+                tb.innerHTML += `<tr><td>${i+1}</td><td><b>${s.name}</b></td><td>${formatPoint(s.total)}</td><td>${s.rank}</td></tr>`;
+            });
+            document.getElementById('previewArea').style.display = 'block';
+        };
+        r.readAsBinaryString(e.target.files[0]);
+    };
+
+    function startPrinting() {
+        const area = document.getElementById('printArea');
+        area.innerHTML = "";
+        
+        const logoSrc = document.getElementById('currentLogo').src;
+        const tea = document.getElementById('tea').value;
+        const cls = document.getElementById('cls').value;
+        const shift = document.getElementById('shift').value;
+        const sDate = document.getElementById('startDate').value;
+        const eDate = document.getElementById('endDate').value;
+        const pDate = document.getElementById('printDate').value;
+        const duration = (sDate && eDate) ? `${sDate} - ${eDate}` : "---";
+
+        const linkIOS = "https://apps.apple.com/vn/app/avcb/id1672556634";
+        const linkAndroid = "https://play.google.com/store/apps/details?id=com.avcb.app";
+
+        studentList.forEach((s, i) => {
+            const id1 = "qr1-" + i; const id2 = "qr2-" + i;
+            
+            // LOGIC QUÀ (TOP 3)
+            let gift = "Động viên khuyến khích 🌟"; 
+            if (s.rank <= 3) {
+                gift = "Phần quà từ trung tâm 🎁";
+            } 
+
+            // CẢNH BÁO TIÊU CỰC -> ĐÃ BỎ
+            let comment = String(s.cmt);
+            
+            // Format điểm (chuyển trống thành "-")
+            const dRead = formatPoint(s.read);
+            const dListen = formatPoint(s.listen);
+            const dSpeak = formatPoint(s.speak);
+            const dPart = formatPoint(s.part);
+            const dTotal = formatPoint(s.total);
+
+            area.innerHTML += `
+            <div class="report-card">
+                <span class="decor" style="top:20px; left:20px;">☁️</span>
+                <span class="decor" style="top:20px; right:20px;">⭐</span>
+                <span class="decor" style="bottom:20px; left:20px;">📘</span>
+                <span class="decor" style="bottom:20px; right:20px;">🐳</span>
+
+                <div class="card-header">
+                    <img src="${logoSrc}" class="logo-img">
+                    <h1 class="title-main">ANH VĂN CÔ BÌNH</h1>
+                    <p class="title-sub">PHIẾU KẾT QUẢ HỌC TẬP / REPORT CARD</p>
+                </div>
+
+                <div class="info-bar">
+                    <div class="info-item">
+                        <span class="info-lbl">Student Name / Tên bé</span>
+                        <span class="info-val">${s.name}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-lbl">Nickname / Biệt danh</span>
+                        <span class="info-val">${s.nick || '---'}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-lbl">Class / Lớp</span>
+                        <span class="info-val">${cls}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-lbl">Shift / Ca học</span>
+                        <span class="info-val">${shift}</span>
+                    </div>
+                    <div class="info-item full-width">
+                        <span class="info-lbl">Course Duration / Thời gian khóa học</span>
+                        <span class="info-val">${duration}</span>
+                    </div>
+                </div>
+
+                <table class="score-tbl">
+                    <thead><tr><th width="60%">ASSESSMENT / NỘI DUNG</th><th class="score-val">RESULT</th></tr></thead>
+                    <tbody>
+                        <tr><td>📖 Reading & Writing (Đọc - Viết)</td><td class="score-val">${dRead}</td></tr>
+                        <tr><td>🎧 Listening (Nghe)</td><td class="score-val">${dListen}</td></tr>
+                        <tr><td>🗣️ Speaking (Nói)</td><td class="score-val">${dSpeak}</td></tr>
+                        <tr><td>✨ Participation (Sự hăng hái)</td><td class="score-val">${dPart}</td></tr>
+                        <tr class="row-total"><td>❤️ Overall Score (Tổng điểm)</td><td class="score-val">${dTotal}</td></tr>
+                        <tr class="row-rank"><td>🥇 Class Rank (Xếp hạng)</td><td class="score-val">Hạng ${s.rank}</td></tr>
+                        <tr><td>🎖️ Classification (Xếp loại)</td><td class="score-val"><b>${s.cls}</b></td></tr>
+                        <tr><td>🎁 Nhận phần quà từ trung tâm</td><td class="score-val">${gift}</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="remark-box">
+                    <span class="remark-lbl">Teacher's Remarks / Lời nhắn từ cô</span>
+                    <div style="font-size:13px;">${comment}</div>
+                </div>
+
+                <div class="footer">
+                    <div class="footer-left">
+                        <div class="app-promo">📱 Tải App AVCB để xem kết quả học tập chi tiết!</div>
+                        <div class="qr-section">
+                            <div class="qr-wrap"><div id="${id1}" class="qr-frame"></div><div class="qr-txt">iOS App</div></div>
+                            <div class="qr-wrap"><div id="${id2}" class="qr-frame"></div><div class="qr-txt">Android</div></div>
+                        </div>
+                    </div>
+
+                    <div class="sign-box">
+                        <div class="sign-lbl">Teacher's Signature<br>Giáo viên</div>
+                        <div class="teacher-name">${tea}</div>
+                    </div>
+                </div>
+
+                <div class="print-date">Ngày in: ${pDate}</div>
+                <div class="page-num">Phiếu số: ${i+1}/${studentList.length}</div>
+            </div>`;
+
+            setTimeout(() => {
+                new QRCode(document.getElementById(id1), { text: linkIOS, width: 75, height: 75, correctLevel: QRCode.CorrectLevel.H });
+                new QRCode(document.getElementById(id2), { text: linkAndroid, width: 75, height: 75, correctLevel: QRCode.CorrectLevel.H });
+            }, 300);
+        });
+
+        setTimeout(() => window.print(), 2000);
+    }
+</script>
+</body>
+</html>
